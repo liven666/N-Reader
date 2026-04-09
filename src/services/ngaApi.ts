@@ -29,6 +29,18 @@ export interface Board {
 const cache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 30000; // 30 seconds
 
+const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
+
+function getApiUrl(): string {
+  if (isCapacitor) {
+    const customApiUrl = localStorage.getItem("nreader_api_url");
+    if (customApiUrl) {
+      return customApiUrl;
+    }
+  }
+  return "/api/nga";
+}
+
 export async function fetchNga(url: string, method: "GET" | "POST" = "GET", postData?: any, useGuest: boolean = false, forceRefresh: boolean = false) {
   const cacheKey = `${method}:${url}:${typeof postData === 'object' ? JSON.stringify(postData) : (postData || '')}`;
   
@@ -39,13 +51,28 @@ export async function fetchNga(url: string, method: "GET" | "POST" = "GET", post
     }
   }
 
+  const apiUrl = getApiUrl();
+  
+  if (isCapacitor && apiUrl === "/api/nga") {
+    throw new Error("请先在设置中配置后端服务器地址\n\n当前版本需要部署后端服务器才能使用，请联系开发者获取部署说明");
+  }
+
   const uid = useGuest ? null : localStorage.getItem("nreader_uid");
   const cid = useGuest ? null : localStorage.getItem("nreader_cid");
-  const res = await fetch("/api/nga", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, uid, cid, method, postData })
-  });
+  
+  let res: Response;
+  try {
+    res = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, uid, cid, method, postData })
+    });
+  } catch (e) {
+    if (isCapacitor) {
+      throw new Error(`无法连接到后端服务器\n\n请检查：\n1. 服务器地址是否正确\n2. 服务器是否正在运行\n3. 网络连接是否正常\n\n错误详情: ${(e as Error).message}`);
+    }
+    throw e;
+  }
   
   if (!res.ok) {
     let errorMsg = "Network response was not ok";
@@ -63,7 +90,19 @@ export async function fetchNga(url: string, method: "GET" | "POST" = "GET", post
     throw new Error(errorMsg);
   }
   
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    const text = await res.text();
+    if (text.trim().startsWith('<!')) {
+      if (isCapacitor) {
+        throw new Error("后端服务器返回了无效响应\n\n请检查服务器地址是否正确");
+      }
+      throw new Error("Invalid response from server");
+    }
+    throw e;
+  }
   
   if (method === "GET" && !data.error && !useGuest) {
     cache.set(cacheKey, { data, timestamp: Date.now() });

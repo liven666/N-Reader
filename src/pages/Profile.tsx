@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSettings } from "../contexts/SettingsContext";
-import { Settings, Type, AlignLeft, Trash2, Moon, ShieldCheck, ChevronRight, KeyRound, CheckCircle2 } from "lucide-react";
+import { Settings, Type, AlignLeft, Trash2, Moon, ShieldCheck, ChevronRight, KeyRound, CheckCircle2, Globe } from "lucide-react";
+
+const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
 export default function Profile() {
   const { fontSize, setFontSize, lineHeight, setLineHeight } = useSettings();
@@ -8,15 +10,20 @@ export default function Profile() {
   const [uid, setUid] = useState("");
   const [cid, setCid] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [apiUrl, setApiUrl] = useState("");
   const [message, setMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     const savedUid = localStorage.getItem("nreader_uid");
     const savedCid = localStorage.getItem("nreader_cid");
+    const savedApiUrl = localStorage.getItem("nreader_api_url");
     if (savedUid && savedCid) {
       setUid(savedUid);
       setCid(savedCid);
       setIsLoggedIn(true);
+    }
+    if (savedApiUrl) {
+      setApiUrl(savedApiUrl);
     }
   }, []);
 
@@ -43,6 +50,16 @@ export default function Profile() {
     setCid("");
     setIsLoggedIn(false);
     showMessage("已退出登录", "success");
+  };
+
+  const handleSaveApiUrl = () => {
+    if (apiUrl) {
+      localStorage.setItem("nreader_api_url", apiUrl);
+      showMessage("服务器地址已保存", "success");
+    } else {
+      localStorage.removeItem("nreader_api_url");
+      showMessage("已清除服务器地址配置", "success");
+    }
   };
 
   const handleClearCache = () => {
@@ -79,6 +96,38 @@ export default function Profile() {
             </p>
           </div>
         </div>
+
+        {/* Server Settings (only show in Capacitor) */}
+        {isCapacitor && (
+          <section>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1 flex items-center gap-1.5">
+              <Globe className="w-4 h-4" /> 后端服务器配置
+            </h3>
+            <div className="bg-[#FFFDF5] dark:bg-zinc-900 rounded-xl border border-gray-100 dark:border-zinc-800 p-4">
+              <div className="space-y-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  N-Reader 需要后端服务器来处理 NGA API 请求。请输入服务器地址。
+                </p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">服务器地址</label>
+                  <input 
+                    type="text" 
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#FFF9E6] dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="https://your-server.com/api/nga"
+                  />
+                </div>
+                <button 
+                  onClick={handleSaveApiUrl}
+                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  保存服务器地址
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Login Settings */}
         <section>
