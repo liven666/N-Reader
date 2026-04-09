@@ -115,8 +115,11 @@ export default function Profile() {
                     value={apiUrl}
                     onChange={(e) => setApiUrl(e.target.value)}
                     className="w-full px-3 py-2 bg-[#FFF9E6] dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    placeholder="https://your-server.com/api/nga"
+                    placeholder="https://ais-pre-c46pdi4rivswi423p2fguj-104340991429.asia-northeast1.run.app/api/nga"
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    💡 提示：上方占位符为示例地址，如需使用请联系服务器
+                  </p>
                 </div>
                 <button 
                   onClick={handleSaveApiUrl}
