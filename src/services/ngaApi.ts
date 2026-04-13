@@ -1,3 +1,5 @@
+import { MOCK_BOARDS, MOCK_THREADS, MOCK_POSTS, getBoard, getThreadsByBoard, getThread, getPostsByThread } from './mockData';
+
 export interface Thread {
   id: string;
   boardId: string;
@@ -49,6 +51,74 @@ function getApiUrl(): string {
   return "/api/nga";
 }
 
+function isOfflineMode(): boolean {
+  return localStorage.getItem("nreader_offline_mode") === "true";
+}
+
+function getMockResponse(url: string) {
+  if (url.includes("forum_favor2")) {
+    return {
+      data: {
+        "0": {
+          "843": { fid: 843, name: "国际区/国新区" },
+          "-7": { fid: -7, name: "网事杂谈" },
+          "436": { fid: 436, name: "消费电子" },
+        }
+      }
+    };
+  }
+  
+  if (url.includes("thread.php") && !url.includes("read.php")) {
+    return {
+      data: {
+        __T: Object.fromEntries(
+          MOCK_THREADS.map(t => [
+            t.id,
+            {
+              tid: parseInt(t.id),
+              fid: parseInt(t.boardId),
+              subject: t.title,
+              author: t.author,
+              replies: t.replyCount,
+              postdate: Math.floor(new Date(t.createdAt).getTime() / 1000),
+              topic_misc: t.isSticky ? "1" : "0"
+            }
+          ])
+        )
+      }
+    };
+  }
+  
+  if (url.includes("read.php")) {
+    return {
+      data: {
+        __T: { subject: "【讨论】11.0地心之战大秘境首发职业推荐", replies: 234 },
+        __U: {
+          "1": { username: "大领主提里奥", avatar: "" },
+          "2": { username: "跟风小王子", avatar: "" },
+          "3": { username: "信仰圣光", avatar: "" }
+        },
+        __R: Object.fromEntries(
+          MOCK_POSTS.map((p, i) => [
+            i.toString(),
+            {
+              pid: parseInt(p.id.replace("p", "")),
+              tid: parseInt(p.threadId),
+              lou: p.floor,
+              authorid: "1",
+              content: p.content,
+              postdate: p.createdAt,
+              score: p.likes
+            }
+          ])
+        )
+      }
+    };
+  }
+  
+  return { data: {} };
+}
+
 export async function fetchNga(url: string, method: "GET" | "POST" = "GET", postData?: any, useGuest: boolean = false, forceRefresh: boolean = false) {
   const cacheKey = `${method}:${url}:${typeof postData === 'object' ? JSON.stringify(postData) : (postData || '')}`;
   
@@ -59,10 +129,19 @@ export async function fetchNga(url: string, method: "GET" | "POST" = "GET", post
     }
   }
 
+  if (isOfflineMode()) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const mockData = getMockResponse(url);
+    if (method === "GET" && !mockData.error && !useGuest) {
+      cache.set(cacheKey, { data: mockData, timestamp: Date.now() });
+    }
+    return mockData;
+  }
+
   const apiUrl = getApiUrl();
   
   if (isCapacitor && apiUrl === "/api/nga") {
-    throw new Error("请先在设置中配置后端服务器地址\n\n当前版本需要部署后端服务器才能使用，请联系开发者获取部署说明");
+    throw new Error("请先在设置中配置后端服务器地址，或启用离线模式体验\n\n当前版本需要部署后端服务器才能使用，请联系开发者获取部署说明");
   }
 
   const uid = useGuest ? null : localStorage.getItem("nreader_uid");

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSettings } from "../contexts/SettingsContext";
-import { Settings, Type, AlignLeft, Trash2, Moon, ShieldCheck, ChevronRight, KeyRound, CheckCircle2, Globe } from "lucide-react";
+import { Settings, Type, AlignLeft, Trash2, Moon, ShieldCheck, ChevronRight, KeyRound, CheckCircle2, Globe, WifiOff } from "lucide-react";
 
 const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
@@ -12,12 +12,14 @@ export default function Profile() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [apiUrl, setApiUrl] = useState("");
   const [isTesting, setIsTesting] = useState(false);
+  const [offlineMode, setOfflineMode] = useState(false);
   const [message, setMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     const savedUid = localStorage.getItem("nreader_uid");
     const savedCid = localStorage.getItem("nreader_cid");
     const savedApiUrl = localStorage.getItem("nreader_api_url");
+    const savedOfflineMode = localStorage.getItem("nreader_offline_mode");
     if (savedUid && savedCid) {
       setUid(savedUid);
       setCid(savedCid);
@@ -25,6 +27,9 @@ export default function Profile() {
     }
     if (savedApiUrl) {
       setApiUrl(savedApiUrl);
+    }
+    if (savedOfflineMode === "true") {
+      setOfflineMode(true);
     }
   }, []);
 
@@ -103,6 +108,13 @@ export default function Profile() {
     } finally {
       setIsTesting(false);
     }
+  };
+
+  const handleToggleOfflineMode = () => {
+    const newMode = !offlineMode;
+    setOfflineMode(newMode);
+    localStorage.setItem("nreader_offline_mode", newMode.toString());
+    showMessage(newMode ? "已启用离线模式" : "已关闭离线模式", "success");
   };
 
   const handleClearCache = () => {
@@ -305,6 +317,28 @@ export default function Profile() {
               <span className="text-xs text-gray-400">跟随系统</span>
             </div>
 
+          </div>
+        </section>
+
+        {/* Offline Mode */}
+        <section>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1 flex items-center gap-1.5">
+            <WifiOff className="w-4 h-4" /> 离线模式
+          </h3>
+          <div className="bg-[#FFFDF5] dark:bg-zinc-900 rounded-xl border border-gray-100 dark:border-zinc-800 p-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              启用离线模式后，应用将使用模拟数据，无需连接后端服务器。
+            </p>
+            <button 
+              onClick={handleToggleOfflineMode}
+              className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                offlineMode 
+                  ? 'bg-green-600 hover:bg-green-700 text-white' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+              }`}
+            >
+              {offlineMode ? '✅ 离线模式已启用' : '🔌 启用离线模式'}
+            </button>
           </div>
         </section>
 
