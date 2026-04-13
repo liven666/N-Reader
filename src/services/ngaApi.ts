@@ -129,8 +129,31 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
     'Upgrade-Insecure-Requests': '1',
   };
   
+  const { CapacitorHttp, CapacitorCookies } = await import('@capacitor/core');
+
   if (uid && cid) {
     headers['Cookie'] = `ngaPassportUid=${uid}; ngaPassportCid=${cid}`;
+    // 原生环境下强制写入 Cookie 到 WebView 中，防止被拦截或丢弃
+    try {
+      await CapacitorCookies.setCookie({
+        url: 'https://bbs.nga.cn',
+        key: 'ngaPassportUid',
+        value: uid,
+      });
+      await CapacitorCookies.setCookie({
+        url: 'https://bbs.nga.cn',
+        key: 'ngaPassportCid',
+        value: cid,
+      });
+      // NGA sometimes needs guestJs
+      await CapacitorCookies.setCookie({
+        url: 'https://bbs.nga.cn',
+        key: 'guestJs',
+        value: String(Math.floor(Date.now() / 1000)),
+      });
+    } catch (e) {
+      console.warn('Failed to set native cookies', e);
+    }
   }
 
   let finalUrl = url;
@@ -144,8 +167,6 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
     requestBody = formData.toString();
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
   }
-
-  const { CapacitorHttp } = await import('@capacitor/core');
 
   const options: any = {
     url: finalUrl,
