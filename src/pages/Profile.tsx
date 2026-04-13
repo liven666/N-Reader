@@ -11,6 +11,7 @@ export default function Profile() {
   const [cid, setCid] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [apiUrl, setApiUrl] = useState("");
+  const [isTesting, setIsTesting] = useState(false);
   const [message, setMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
@@ -59,6 +60,48 @@ export default function Profile() {
     } else {
       localStorage.removeItem("nreader_api_url");
       showMessage("已清除服务器地址配置", "success");
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!apiUrl) {
+      showMessage("请先输入服务器地址", "error");
+      return;
+    }
+
+    setIsTesting(true);
+    
+    let testUrl = apiUrl.trim();
+    if (!testUrl.endsWith("/api/nga")) {
+      if (testUrl.endsWith("/")) {
+        testUrl = testUrl + "api/nga";
+      } else {
+        testUrl = testUrl + "/api/nga";
+      }
+    }
+
+    try {
+      const response = await fetch(testUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: "https://bbs.nga.cn/thread.php?fid=-7&lite=js",
+          method: "GET"
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("服务器响应:", data);
+        showMessage("✅ 连接成功！服务器工作正常", "success");
+      } else {
+        const errorText = await response.text();
+        showMessage(`❌ 服务器返回错误 (${response.status}): ${errorText.substring(0, 100)}`, "error");
+      }
+    } catch (error) {
+      showMessage(`❌ 连接失败: ${(error as Error).message}`, "error");
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -121,12 +164,21 @@ export default function Profile() {
                     💡 提示：上方占位符为示例地址，如需使用请联系服务器
                   </p>
                 </div>
-                <button 
-                  onClick={handleSaveApiUrl}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  保存服务器地址
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleSaveApiUrl}
+                    className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    保存
+                  </button>
+                  <button 
+                    onClick={handleTestConnection}
+                    disabled={isTesting}
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {isTesting ? "测试中..." : "测试连接"}
+                  </button>
+                </div>
               </div>
             </div>
           </section>

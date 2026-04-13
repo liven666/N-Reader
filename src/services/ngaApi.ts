@@ -33,8 +33,16 @@ const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
 function getApiUrl(): string {
   if (isCapacitor) {
-    const customApiUrl = localStorage.getItem("nreader_api_url");
+    let customApiUrl = localStorage.getItem("nreader_api_url");
     if (customApiUrl) {
+      customApiUrl = customApiUrl.trim();
+      if (customApiUrl && !customApiUrl.endsWith("/api/nga")) {
+        if (customApiUrl.endsWith("/")) {
+          return customApiUrl + "api/nga";
+        } else {
+          return customApiUrl + "/api/nga";
+        }
+      }
       return customApiUrl;
     }
   }
