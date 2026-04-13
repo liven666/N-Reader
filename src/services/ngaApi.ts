@@ -33,6 +33,13 @@ const CACHE_TTL = 30000;
 
 const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
+type ConnectionMode = 'proxy' | 'direct';
+
+function getConnectionMode(): ConnectionMode {
+  const saved = localStorage.getItem("nreader_connection_mode");
+  return saved === 'direct' ? 'direct' : 'proxy';
+}
+
 function isOfflineMode(): boolean {
   return localStorage.getItem("nreader_offline_mode") === "true";
 }
@@ -146,6 +153,22 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
   return parseNgaResponse(response.data);
 }
 
+function getApiUrl(): string {
+  if (isCapacitor) {
+    let customApiUrl = localStorage.getItem("nreader_api_url");
+    if (customApiUrl) {
+      customApiUrl = customApiUrl.trim();
+      if (customApiUrl && !customApiUrl.endsWith("/api/nga")) {
+        return customApiUrl.endsWith("/") ? 
+            customApiUrl + "api/nga" : 
+            customApiUrl + "/api/nga";
+      }
+      return customApiUrl;
+    }
+  }
+  return "/api/nga";
+}
+
 export async function fetchNga(url: string, method: "GET" | "POST" = "GET", postData?: any, useGuest: boolean = false, forceRefresh: boolean = false) {
   const cacheKey = `${method}:${url}:${typeof postData === 'object' ? JSON.stringify(postData) : (postData || '')}`;
   
@@ -167,27 +190,32 @@ export async function fetchNga(url: string, method: "GET" | "POST" = "GET", post
 
   const uid = useGuest ? null : localStorage.getItem("nreader_uid");
   const cid = useGuest ? null : localStorage.getItem("nreader_cid");
+  const mode = getConnectionMode();
 
   let data: any;
   
   try {
-    if (isCapacitor) {
+    if (isCapacitor && mode === 'direct') {
       data = await fetchWithCapacitorHttp(url, method, postData, uid, cid);
     } else {
-      const proxyUrl = "/api/nga";
+      const proxyUrl = getApiUrl();
       const res = await fetch(proxyUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, uid, cid, method, postData })
       });
       if (!res.ok) {
-        throw new Error("Network response was not ok");
+        const modeInfo = isCapacitor && mode === 'proxy' ? 
+          "当前使用代理模式，可能是后端服务器不可用。\n\n建议：\n1. 检查服务器地址是否正确\n2. 或者切换到「直接连接」模式" :
+          "Network response was not ok";
+        throw new Error(modeInfo);
       }
       data = await res.json();
     }
   } catch (e) {
     if (isCapacitor) {
-      throw new Error(`无法连接到 NGA\n\n请检查：\n1. 网络连接是否正常\n2. Cookie 是否有效\n\n错误详情: ${(e as Error).message}`);
+      const modeInfo = mode === 'direct' ? "直接连接" : "代理模式";
+      throw new Error(`无法连接到 NGA (${modeInfo})\n\n请检查：\n1. 网络连接是否正常\n2. Cookie 是否有效\n3. 如果是代理模式，请检查服务器地址\n\n${mode === 'proxy' ? '💡 提示：可以尝试切换到「直接连接」模式' : ''}\n\n错误详情: ${(e as Error).message}`);
     }
     throw e;
   }
@@ -213,7 +241,7 @@ export async function getFavorBoards(forceRefresh = false): Promise<Board[]> {
   const data = await fetchNga(`https://bbs.nga.cn/nuke.php?__lib=forum_favor2&__act=forum_favor&action=get&__output=8`);
   
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
 
   const boardsData = Array.isArray(data.data) ? data.data[0] : (data.data?.["0"] || data.data || {});
@@ -318,7 +346,7 @@ export async function getPostsByThread(threadId: string, page = 1, useGuest = fa
 export async function toggleFavorBoard(boardId: string, action: 'add' | 'del'): Promise<void> {
   const data = await fetchNga(`https://bbs.nga.cn/nuke.php?__lib=forum_favor2&__act=forum_favor&action=${action}&fid=${boardId}&__output=8`);
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
   cachedFavorBoards = null;
   for (const key of cache.keys()) {
@@ -340,7 +368,7 @@ export async function toggleFavorThread(threadId: string, action: 'add' | 'del')
     : `https://bbs.nga.cn/nuke.php?__lib=topic_favor&__act=topic_favor&action=del&raw=3&tid=${threadId}&page=1&tidarray=${threadId}&__output=8`;
   const data = await fetchNga(url);
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
   cachedFavorThreads = null;
   for (const key of cache.keys()) {
@@ -357,7 +385,7 @@ export async function getFavorThreads(page = 1, forceRefresh = false): Promise<T
 
   const data = await fetchNga(`https://bbs.nga.cn/thread.php?favor=1&page=${page}&__output=8`);
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
 
   const threadsData = data.data?.__T || {};
