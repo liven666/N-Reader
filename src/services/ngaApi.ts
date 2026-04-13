@@ -37,14 +37,14 @@ type ConnectionMode = 'proxy' | 'direct';
 
 function getConnectionMode(): ConnectionMode {
   const saved = localStorage.getItem("nreader_connection_mode");
-  return saved === 'direct' ? 'direct' : 'proxy';
+  return saved === 'proxy' ? 'proxy' : 'direct'; // Default to direct
 }
 
 function isOfflineMode(): boolean {
   return localStorage.getItem("nreader_offline_mode") === "true";
 }
 
-function getMockResponse(url: string) {
+function getMockResponse(url: string): { data: any, error?: string } {
   if (url.includes("forum_favor2")) {
     return {
       data: {
@@ -121,17 +121,10 @@ function parseNgaResponse(text: string): any {
 }
 
 async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postData?: any, uid?: string, cid?: string): Promise<any> {
-  const CapacitorHttp = (window as any).Capacitor?.Plugins?.Http;
-  
-  if (!CapacitorHttp) {
-    throw new Error("Capacitor HTTP plugin not available");
-  }
-  
   const headers: any = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
   };
@@ -152,21 +145,25 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
   }
 
-  const options: any = {
-    url: finalUrl,
-    headers: headers,
-  };
-  
-  if (method === "POST" && requestBody) {
-    options.data = requestBody;
-  }
-
-  const response = await CapacitorHttp.request({
+  // Use the browser's fetch API, which CapacitorHttp will automatically intercept 
+  // and process natively, bypassing CORS!
+  const response = await fetch(finalUrl, {
     method: method,
-    ...options,
+    headers: headers,
+    body: requestBody,
   });
 
-  return parseNgaResponse(response.data);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  // Read response as raw bytes
+  const buffer = await response.arrayBuffer();
+  
+  // Decode GBK manually
+  const text = new TextDecoder('gbk').decode(buffer);
+
+  return parseNgaResponse(text);
 }
 
 function getApiUrl(): string {

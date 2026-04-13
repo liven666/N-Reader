@@ -14,7 +14,7 @@ export default function Profile() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [apiUrl, setApiUrl] = useState("");
   const [isTesting, setIsTesting] = useState(false);
-  const [connectionMode, setConnectionMode] = useState<ConnectionMode>('proxy');
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>('direct');
   const [offlineMode, setOfflineMode] = useState(false);
   const [message, setMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
 
@@ -32,8 +32,8 @@ export default function Profile() {
     if (savedApiUrl) {
       setApiUrl(savedApiUrl);
     }
-    if (savedMode === 'direct') {
-      setConnectionMode('direct');
+    if (savedMode === 'proxy') {
+      setConnectionMode('proxy');
     }
     if (savedOfflineMode === "true") {
       setOfflineMode(true);

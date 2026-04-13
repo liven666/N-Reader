@@ -5,7 +5,8 @@ const config: CapacitorConfig = {
   appName: 'N-Reader',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    cleartext: true
   },
   plugins: {
     CapacitorHttp: {
