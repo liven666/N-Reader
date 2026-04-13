@@ -121,10 +121,19 @@ function parseNgaResponse(text: string): any {
 }
 
 async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postData?: any, uid?: string, cid?: string): Promise<any> {
-  const { Http } = await import('@capacitor-community/http');
+  const CapacitorHttp = (window as any).Capacitor?.Plugins?.Http;
+  
+  if (!CapacitorHttp) {
+    throw new Error("Capacitor HTTP plugin not available");
+  }
   
   const headers: any = {
-    'User-Agent': 'NGA/1.0',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
   };
   
   if (uid && cid) {
@@ -143,11 +152,18 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
   }
 
-  const response = await Http.request({
-    method: method,
+  const options: any = {
     url: finalUrl,
     headers: headers,
-    data: requestBody,
+  };
+  
+  if (method === "POST" && requestBody) {
+    options.data = requestBody;
+  }
+
+  const response = await CapacitorHttp.request({
+    method: method,
+    ...options,
   });
 
   return parseNgaResponse(response.data);
