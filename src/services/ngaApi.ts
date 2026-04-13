@@ -1,4 +1,4 @@
-import { MOCK_BOARDS, MOCK_THREADS, MOCK_POSTS, getBoard, getThreadsByBoard, getThread, getPostsByThread } from './mockData';
+import { MOCK_BOARDS, MOCK_THREADS, MOCK_POSTS } from './mockData';
 
 export interface Thread {
   id: string;
@@ -29,27 +29,9 @@ export interface Board {
 }
 
 const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 30000; // 30 seconds
+const CACHE_TTL = 30000;
 
 const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
-
-function getApiUrl(): string {
-  if (isCapacitor) {
-    let customApiUrl = localStorage.getItem("nreader_api_url");
-    if (customApiUrl) {
-      customApiUrl = customApiUrl.trim();
-      if (customApiUrl && !customApiUrl.endsWith("/api/nga")) {
-        if (customApiUrl.endsWith("/")) {
-          return customApiUrl + "api/nga";
-        } else {
-          return customApiUrl + "/api/nga";
-        }
-      }
-      return customApiUrl;
-    }
-  }
-  return "/api/nga";
-}
 
 function isOfflineMode(): boolean {
   return localStorage.getItem("nreader_offline_mode") === "true";
@@ -119,6 +101,51 @@ function getMockResponse(url: string) {
   return { data: {} };
 }
 
+function parseNgaResponse(text: string): any {
+  try {
+    let jsonStr = text.trim();
+    if (jsonStr.startsWith('window.script_muti_get_var_store=')) {
+      jsonStr = jsonStr.replace('window.script_muti_get_var_store=', '');
+    }
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    return { error: "Failed to parse response" };
+  }
+}
+
+async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postData?: any, uid?: string, cid?: string): Promise<any> {
+  const { Http } = await import('@capacitor-community/http');
+  
+  const headers: any = {
+    'User-Agent': 'NGA/1.0',
+  };
+  
+  if (uid && cid) {
+    headers['Cookie'] = `ngaPassportUid=${uid}; ngaPassportCid=${cid}`;
+  }
+
+  let finalUrl = url;
+  let requestBody: any = undefined;
+  
+  if (method === "POST" && postData) {
+    const formData = new URLSearchParams();
+    for (const key in postData) {
+      formData.append(key, postData[key]);
+    }
+    requestBody = formData.toString();
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+  }
+
+  const response = await Http.request({
+    method: method,
+    url: finalUrl,
+    headers: headers,
+    data: requestBody,
+  });
+
+  return parseNgaResponse(response.data);
+}
+
 export async function fetchNga(url: string, method: "GET" | "POST" = "GET", postData?: any, useGuest: boolean = false, forceRefresh: boolean = false) {
   const cacheKey = `${method}:${url}:${typeof postData === 'object' ? JSON.stringify(postData) : (postData || '')}`;
   
@@ -138,59 +165,33 @@ export async function fetchNga(url: string, method: "GET" | "POST" = "GET", post
     return mockData;
   }
 
-  const apiUrl = getApiUrl();
-  
-  if (isCapacitor && apiUrl === "/api/nga") {
-    throw new Error("请先在设置中配置后端服务器地址，或启用离线模式体验\n\n当前版本需要部署后端服务器才能使用，请联系开发者获取部署说明");
-  }
-
   const uid = useGuest ? null : localStorage.getItem("nreader_uid");
   const cid = useGuest ? null : localStorage.getItem("nreader_cid");
+
+  let data: any;
   
-  let res: Response;
   try {
-    res = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, uid, cid, method, postData })
-    });
+    if (isCapacitor) {
+      data = await fetchWithCapacitorHttp(url, method, postData, uid, cid);
+    } else {
+      const proxyUrl = "/api/nga";
+      const res = await fetch(proxyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, uid, cid, method, postData })
+      });
+      if (!res.ok) {
+        throw new Error("Network response was not ok");
+      }
+      data = await res.json();
+    }
   } catch (e) {
     if (isCapacitor) {
-      throw new Error(`无法连接到后端服务器\n\n请检查：\n1. 服务器地址是否正确\n2. 服务器是否正在运行\n3. 网络连接是否正常\n\n错误详情: ${(e as Error).message}`);
+      throw new Error(`无法连接到 NGA\n\n请检查：\n1. 网络连接是否正常\n2. Cookie 是否有效\n\n错误详情: ${(e as Error).message}`);
     }
     throw e;
   }
-  
-  if (!res.ok) {
-    let errorMsg = "Network response was not ok";
-    try {
-      const errorData = await res.json();
-      if (errorData && errorData.error) {
-        errorMsg = typeof errorData.error === 'string' ? errorData.error : errorData.error[0];
-        if (errorData.raw) {
-          errorMsg += `\nRaw: ${errorData.raw}`;
-        }
-      }
-    } catch (e) {
-      // Ignore JSON parse error on error response
-    }
-    throw new Error(errorMsg);
-  }
-  
-  let data;
-  try {
-    data = await res.json();
-  } catch (e) {
-    const text = await res.text();
-    if (text.trim().startsWith('<!')) {
-      if (isCapacitor) {
-        throw new Error("后端服务器返回了无效响应\n\n请检查服务器地址是否正确");
-      }
-      throw new Error("Invalid response from server");
-    }
-    throw e;
-  }
-  
+
   if (method === "GET" && !data.error && !useGuest) {
     cache.set(cacheKey, { data, timestamp: Date.now() });
   }
@@ -212,7 +213,7 @@ export async function getFavorBoards(forceRefresh = false): Promise<Board[]> {
   const data = await fetchNga(`https://bbs.nga.cn/nuke.php?__lib=forum_favor2&__act=forum_favor&action=get&__output=8`);
   
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
   }
 
   const boardsData = Array.isArray(data.data) ? data.data[0] : (data.data?.["0"] || data.data || {});
@@ -317,9 +318,8 @@ export async function getPostsByThread(threadId: string, page = 1, useGuest = fa
 export async function toggleFavorBoard(boardId: string, action: 'add' | 'del'): Promise<void> {
   const data = await fetchNga(`https://bbs.nga.cn/nuke.php?__lib=forum_favor2&__act=forum_favor&action=${action}&fid=${boardId}&__output=8`);
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
   }
-  // Clear cache
   cachedFavorBoards = null;
   for (const key of cache.keys()) {
     if (key.includes('forum_favor2')) {
@@ -340,9 +340,8 @@ export async function toggleFavorThread(threadId: string, action: 'add' | 'del')
     : `https://bbs.nga.cn/nuke.php?__lib=topic_favor&__act=topic_favor&action=del&raw=3&tid=${threadId}&page=1&tidarray=${threadId}&__output=8`;
   const data = await fetchNga(url);
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
   }
-  // Clear cache
   cachedFavorThreads = null;
   for (const key of cache.keys()) {
     if (key.includes('favor=1')) {
@@ -358,7 +357,7 @@ export async function getFavorThreads(page = 1, forceRefresh = false): Promise<T
 
   const data = await fetchNga(`https://bbs.nga.cn/thread.php?favor=1&page=${page}&__output=8`);
   if (data.error) {
-    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
+    throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error";
   }
 
   const threadsData = data.data?.__T || {};
@@ -389,7 +388,6 @@ export async function votePost(tid: string, pid: string, value: 1 | -1): Promise
   if (data.error) {
     throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
-  // Clear cache for this thread
   for (const key of cache.keys()) {
     if (key.includes(`read.php?tid=${tid}`)) {
       cache.delete(key);
@@ -409,7 +407,6 @@ export async function replyPost(tid: string, content: string, pid?: string): Pro
   if (data.error) {
     throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
-  // Clear cache for this thread
   for (const key of cache.keys()) {
     if (key.includes(`read.php?tid=${tid}`)) {
       cache.delete(key);

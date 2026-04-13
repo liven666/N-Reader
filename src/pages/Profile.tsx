@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSettings } from "../contexts/SettingsContext";
-import { Settings, Type, AlignLeft, Trash2, Moon, ShieldCheck, ChevronRight, KeyRound, CheckCircle2, Globe, WifiOff } from "lucide-react";
+import { Settings, Type, AlignLeft, Trash2, Moon, ShieldCheck, ChevronRight, KeyRound, CheckCircle2, WifiOff } from "lucide-react";
 
 const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
@@ -10,23 +10,17 @@ export default function Profile() {
   const [uid, setUid] = useState("");
   const [cid, setCid] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [apiUrl, setApiUrl] = useState("");
-  const [isTesting, setIsTesting] = useState(false);
   const [offlineMode, setOfflineMode] = useState(false);
   const [message, setMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     const savedUid = localStorage.getItem("nreader_uid");
     const savedCid = localStorage.getItem("nreader_cid");
-    const savedApiUrl = localStorage.getItem("nreader_api_url");
     const savedOfflineMode = localStorage.getItem("nreader_offline_mode");
     if (savedUid && savedCid) {
       setUid(savedUid);
       setCid(savedCid);
       setIsLoggedIn(true);
-    }
-    if (savedApiUrl) {
-      setApiUrl(savedApiUrl);
     }
     if (savedOfflineMode === "true") {
       setOfflineMode(true);
@@ -56,58 +50,6 @@ export default function Profile() {
     setCid("");
     setIsLoggedIn(false);
     showMessage("已退出登录", "success");
-  };
-
-  const handleSaveApiUrl = () => {
-    if (apiUrl) {
-      localStorage.setItem("nreader_api_url", apiUrl);
-      showMessage("服务器地址已保存", "success");
-    } else {
-      localStorage.removeItem("nreader_api_url");
-      showMessage("已清除服务器地址配置", "success");
-    }
-  };
-
-  const handleTestConnection = async () => {
-    if (!apiUrl) {
-      showMessage("请先输入服务器地址", "error");
-      return;
-    }
-
-    setIsTesting(true);
-    
-    let testUrl = apiUrl.trim();
-    if (!testUrl.endsWith("/api/nga")) {
-      if (testUrl.endsWith("/")) {
-        testUrl = testUrl + "api/nga";
-      } else {
-        testUrl = testUrl + "/api/nga";
-      }
-    }
-
-    try {
-      const response = await fetch(testUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: "https://bbs.nga.cn/thread.php?fid=-7&lite=js",
-          method: "GET"
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("服务器响应:", data);
-        showMessage("✅ 连接成功！服务器工作正常", "success");
-      } else {
-        const errorText = await response.text();
-        showMessage(`❌ 服务器返回错误 (${response.status}): ${errorText.substring(0, 100)}`, "error");
-      }
-    } catch (error) {
-      showMessage(`❌ 连接失败: ${(error as Error).message}`, "error");
-    } finally {
-      setIsTesting(false);
-    }
   };
 
   const handleToggleOfflineMode = () => {
@@ -151,50 +93,6 @@ export default function Profile() {
             </p>
           </div>
         </div>
-
-        {/* Server Settings (only show in Capacitor) */}
-        {isCapacitor && (
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1 flex items-center gap-1.5">
-              <Globe className="w-4 h-4" /> 后端服务器配置
-            </h3>
-            <div className="bg-[#FFFDF5] dark:bg-zinc-900 rounded-xl border border-gray-100 dark:border-zinc-800 p-4">
-              <div className="space-y-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                  N-Reader 需要后端服务器来处理 NGA API 请求。请输入服务器地址。
-                </p>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">服务器地址</label>
-                  <input 
-                    type="text" 
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#FFF9E6] dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    placeholder="https://ais-pre-c46pdi4rivswi423p2fguj-104340991429.asia-northeast1.run.app/api/nga"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    💡 提示：上方占位符为示例地址，如需使用请联系服务器
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={handleSaveApiUrl}
-                    className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    保存
-                  </button>
-                  <button 
-                    onClick={handleTestConnection}
-                    disabled={isTesting}
-                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    {isTesting ? "测试中..." : "测试连接"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* Login Settings */}
         <section>
@@ -300,21 +198,10 @@ export default function Profile() {
                         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                     }`}
                   >
-                    {height === 'tight' ? '紧凑' : height === 'normal' ? '适中' : '宽松'}
+                    {height === 'tight' ? '紧' : height === 'normal' ? '中' : '松'}
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Dark Mode Hint */}
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#FFF9E6] dark:bg-zinc-800 flex items-center justify-center text-gray-600 dark:text-gray-300">
-                  <Moon className="w-4 h-4" />
-                </div>
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">深色模式</span>
-              </div>
-              <span className="text-xs text-gray-400">跟随系统</span>
             </div>
 
           </div>
@@ -327,7 +214,7 @@ export default function Profile() {
           </h3>
           <div className="bg-[#FFFDF5] dark:bg-zinc-900 rounded-xl border border-gray-100 dark:border-zinc-800 p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              启用离线模式后，应用将使用模拟数据，无需连接后端服务器。
+              启用离线模式后，应用将使用模拟数据，无需连接 NGA 服务器。
             </p>
             <button 
               onClick={handleToggleOfflineMode}
@@ -364,7 +251,7 @@ export default function Profile() {
         </section>
 
         <div className="text-center pt-4 pb-8">
-          <p className="text-xs text-gray-400 font-mono">N-Reader v1.0.6 (2026-04-08 14:15:58)</p>
+          <p className="text-xs text-gray-400 font-mono">N-Reader v1.0.7 (2026-04-13)</p>
           <p className="text-[10px] text-gray-400 mt-1">仅供学习交流使用，请遵守NGA社区规范</p>
         </div>
       </div>
