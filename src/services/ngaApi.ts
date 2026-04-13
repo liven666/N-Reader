@@ -145,23 +145,41 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
   }
 
-  // Use the browser's fetch API, which CapacitorHttp will automatically intercept 
-  // and process natively, bypassing CORS!
-  const response = await fetch(finalUrl, {
-    method: method,
+  const { CapacitorHttp } = await import('@capacitor/core');
+
+  const options: any = {
+    url: finalUrl,
     headers: headers,
-    body: requestBody,
+    responseType: 'arraybuffer',
+  };
+  
+  if (method === "POST" && requestBody) {
+    options.data = requestBody;
+  }
+
+  const response = await CapacitorHttp.request({
+    method: method,
+    ...options,
   });
 
-  if (!response.ok) {
+  if (response.status >= 400) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  // Read response as raw bytes
-  const buffer = await response.arrayBuffer();
-  
-  // Decode GBK manually
-  const text = new TextDecoder('gbk').decode(buffer);
+  let text = "";
+  if (response.data) {
+    try {
+      const base64Str = String(response.data).replace(/\s/g, '');
+      const binaryString = window.atob(base64Str);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      text = new TextDecoder('gbk').decode(bytes);
+    } catch (e) {
+      text = String(response.data);
+    }
+  }
 
   return parseNgaResponse(text);
 }
