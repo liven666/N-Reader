@@ -1,4 +1,5 @@
 import { MOCK_BOARDS, MOCK_THREADS, MOCK_POSTS } from './mockData';
+import { CapacitorHttp, CapacitorCookies } from '@capacitor/core';
 
 export interface Thread {
   id: string;
@@ -129,7 +130,8 @@ async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postD
     'Upgrade-Insecure-Requests': '1',
   };
   
-  const { CapacitorHttp, CapacitorCookies } = await import('@capacitor/core');
+  // Remove dynamic import
+  // const { CapacitorHttp, CapacitorCookies } = await import('@capacitor/core');
 
   if (uid && cid) {
     headers['Cookie'] = `ngaPassportUid=${uid}; ngaPassportCid=${cid}`;
