@@ -1,6 +1,3 @@
-import { MOCK_BOARDS, MOCK_THREADS, MOCK_POSTS } from './mockData';
-import { CapacitorHttp, CapacitorCookies } from '@capacitor/core';
-
 export interface Thread {
   id: string;
   boardId: string;
@@ -30,198 +27,7 @@ export interface Board {
 }
 
 const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 30000;
-
-const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
-
-type ConnectionMode = 'proxy' | 'direct';
-
-function getConnectionMode(): ConnectionMode {
-  const saved = localStorage.getItem("nreader_connection_mode");
-  return saved === 'proxy' ? 'proxy' : 'direct'; // Default to direct
-}
-
-function isOfflineMode(): boolean {
-  return localStorage.getItem("nreader_offline_mode") === "true";
-}
-
-function getMockResponse(url: string): { data: any, error?: string } {
-  if (url.includes("forum_favor2")) {
-    return {
-      data: {
-        "0": {
-          "843": { fid: 843, name: "国际区/国新区" },
-          "-7": { fid: -7, name: "网事杂谈" },
-          "436": { fid: 436, name: "消费电子" },
-        }
-      }
-    };
-  }
-  
-  if (url.includes("thread.php") && !url.includes("read.php")) {
-    return {
-      data: {
-        __T: Object.fromEntries(
-          MOCK_THREADS.map(t => [
-            t.id,
-            {
-              tid: parseInt(t.id),
-              fid: parseInt(t.boardId),
-              subject: t.title,
-              author: t.author,
-              replies: t.replyCount,
-              postdate: Math.floor(new Date(t.createdAt).getTime() / 1000),
-              topic_misc: t.isSticky ? "1" : "0"
-            }
-          ])
-        )
-      }
-    };
-  }
-  
-  if (url.includes("read.php")) {
-    return {
-      data: {
-        __T: { subject: "【讨论】11.0地心之战大秘境首发职业推荐", replies: 234 },
-        __U: {
-          "1": { username: "大领主提里奥", avatar: "" },
-          "2": { username: "跟风小王子", avatar: "" },
-          "3": { username: "信仰圣光", avatar: "" }
-        },
-        __R: Object.fromEntries(
-          MOCK_POSTS.map((p, i) => [
-            i.toString(),
-            {
-              pid: parseInt(p.id.replace("p", "")),
-              tid: parseInt(p.threadId),
-              lou: p.floor,
-              authorid: "1",
-              content: p.content,
-              postdate: p.createdAt,
-              score: p.likes
-            }
-          ])
-        )
-      }
-    };
-  }
-  
-  return { data: {} };
-}
-
-function parseNgaResponse(text: string): any {
-  try {
-    let jsonStr = text.trim();
-    if (jsonStr.startsWith('window.script_muti_get_var_store=')) {
-      jsonStr = jsonStr.replace('window.script_muti_get_var_store=', '');
-    }
-    return JSON.parse(jsonStr);
-  } catch (e) {
-    return { error: "Failed to parse response" };
-  }
-}
-
-async function fetchWithCapacitorHttp(url: string, method: "GET" | "POST", postData?: any, uid?: string, cid?: string): Promise<any> {
-  const headers: any = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-  };
-  
-  // Remove dynamic import
-  // const { CapacitorHttp, CapacitorCookies } = await import('@capacitor/core');
-
-  if (uid && cid) {
-    headers['Cookie'] = `ngaPassportUid=${uid}; ngaPassportCid=${cid}`;
-    // 原生环境下强制写入 Cookie 到 WebView 中，防止被拦截或丢弃
-    try {
-      await CapacitorCookies.setCookie({
-        url: 'https://bbs.nga.cn',
-        key: 'ngaPassportUid',
-        value: uid,
-      });
-      await CapacitorCookies.setCookie({
-        url: 'https://bbs.nga.cn',
-        key: 'ngaPassportCid',
-        value: cid,
-      });
-      // NGA sometimes needs guestJs
-      await CapacitorCookies.setCookie({
-        url: 'https://bbs.nga.cn',
-        key: 'guestJs',
-        value: String(Math.floor(Date.now() / 1000)),
-      });
-    } catch (e) {
-      console.warn('Failed to set native cookies', e);
-    }
-  }
-
-  let finalUrl = url;
-  let requestBody: any = undefined;
-  
-  if (method === "POST" && postData) {
-    const formData = new URLSearchParams();
-    for (const key in postData) {
-      formData.append(key, postData[key]);
-    }
-    requestBody = formData.toString();
-    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-  }
-
-  const options: any = {
-    url: finalUrl,
-    headers: headers,
-    responseType: 'arraybuffer',
-  };
-  
-  if (method === "POST" && requestBody) {
-    options.data = requestBody;
-  }
-
-  const response = await CapacitorHttp.request({
-    method: method,
-    ...options,
-  });
-
-  if (response.status >= 400) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  let text = "";
-  if (response.data) {
-    try {
-      const base64Str = String(response.data).replace(/\s/g, '');
-      const binaryString = window.atob(base64Str);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      text = new TextDecoder('gbk').decode(bytes);
-    } catch (e) {
-      text = String(response.data);
-    }
-  }
-
-  return parseNgaResponse(text);
-}
-
-function getApiUrl(): string {
-  if (isCapacitor) {
-    let customApiUrl = localStorage.getItem("nreader_api_url");
-    if (customApiUrl) {
-      customApiUrl = customApiUrl.trim();
-      if (customApiUrl && !customApiUrl.endsWith("/api/nga")) {
-        return customApiUrl.endsWith("/") ? 
-            customApiUrl + "api/nga" : 
-            customApiUrl + "/api/nga";
-      }
-      return customApiUrl;
-    }
-  }
-  return "/api/nga";
-}
+const CACHE_TTL = 30000; // 30 seconds
 
 export async function fetchNga(url: string, method: "GET" | "POST" = "GET", postData?: any, useGuest: boolean = false, forceRefresh: boolean = false) {
   const cacheKey = `${method}:${url}:${typeof postData === 'object' ? JSON.stringify(postData) : (postData || '')}`;
@@ -233,47 +39,32 @@ export async function fetchNga(url: string, method: "GET" | "POST" = "GET", post
     }
   }
 
-  if (isOfflineMode()) {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    const mockData = getMockResponse(url);
-    if (method === "GET" && !mockData.error && !useGuest) {
-      cache.set(cacheKey, { data: mockData, timestamp: Date.now() });
-    }
-    return mockData;
-  }
-
   const uid = useGuest ? null : localStorage.getItem("nreader_uid");
   const cid = useGuest ? null : localStorage.getItem("nreader_cid");
-  const mode = getConnectionMode();
-
-  let data: any;
+  const res = await fetch("/api/nga", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, uid, cid, method, postData })
+  });
   
-  try {
-    if (isCapacitor && mode === 'direct') {
-      data = await fetchWithCapacitorHttp(url, method, postData, uid, cid);
-    } else {
-      const proxyUrl = getApiUrl();
-      const res = await fetch(proxyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, uid, cid, method, postData })
-      });
-      if (!res.ok) {
-        const modeInfo = isCapacitor && mode === 'proxy' ? 
-          "当前使用代理模式，可能是后端服务器不可用。\n\n建议：\n1. 检查服务器地址是否正确\n2. 或者切换到「直接连接」模式" :
-          "Network response was not ok";
-        throw new Error(modeInfo);
+  if (!res.ok) {
+    let errorMsg = "Network response was not ok";
+    try {
+      const errorData = await res.json();
+      if (errorData && errorData.error) {
+        errorMsg = typeof errorData.error === 'string' ? errorData.error : errorData.error[0];
+        if (errorData.raw) {
+          errorMsg += `\nRaw: ${errorData.raw}`;
+        }
       }
-      data = await res.json();
+    } catch (e) {
+      // Ignore JSON parse error on error response
     }
-  } catch (e) {
-    if (isCapacitor) {
-      const modeInfo = mode === 'direct' ? "直接连接" : "代理模式";
-      throw new Error(`无法连接到 NGA (${modeInfo})\n\n请检查：\n1. 网络连接是否正常\n2. Cookie 是否有效\n3. 如果是代理模式，请检查服务器地址\n\n${mode === 'proxy' ? '💡 提示：可以尝试切换到「直接连接」模式' : ''}\n\n错误详情: ${(e as Error).message}`);
-    }
-    throw e;
+    throw new Error(errorMsg);
   }
-
+  
+  const data = await res.json();
+  
   if (method === "GET" && !data.error && !useGuest) {
     cache.set(cacheKey, { data, timestamp: Date.now() });
   }
@@ -402,6 +193,7 @@ export async function toggleFavorBoard(boardId: string, action: 'add' | 'del'): 
   if (data.error) {
     throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
+  // Clear cache
   cachedFavorBoards = null;
   for (const key of cache.keys()) {
     if (key.includes('forum_favor2')) {
@@ -418,12 +210,16 @@ export function getCachedFavorThreads(): Thread[] | null {
 
 export async function toggleFavorThread(threadId: string, action: 'add' | 'del'): Promise<void> {
   const url = action === 'add' 
-    ? `https://bbs.nga.cn/nuke.php?__lib=topic_favor_v2&__act=add&action=add&folder=1&tid=${threadId}&__output=8`
+    ? `https://bbs.nga.cn/nuke.php?__lib=topic_favor&__act=topic_favor&action=add&raw=3&nouse=post&tid=${threadId}&pid=0&__output=8`
     : `https://bbs.nga.cn/nuke.php?__lib=topic_favor&__act=topic_favor&action=del&raw=3&tid=${threadId}&page=1&tidarray=${threadId}&__output=8`;
-  const data = await fetchNga(url);
+  
+  // NGA favor actions require POST
+  const data = await fetchNga(url, "POST", "");
+  
   if (data.error) {
     throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
+  // Clear cache
   cachedFavorThreads = null;
   for (const key of cache.keys()) {
     if (key.includes('favor=1')) {
@@ -470,6 +266,7 @@ export async function votePost(tid: string, pid: string, value: 1 | -1): Promise
   if (data.error) {
     throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
+  // Clear cache for this thread
   for (const key of cache.keys()) {
     if (key.includes(`read.php?tid=${tid}`)) {
       cache.delete(key);
@@ -489,6 +286,7 @@ export async function replyPost(tid: string, content: string, pid?: string): Pro
   if (data.error) {
     throw new Error((typeof data.error === 'string' ? data.error : data.error[0]) || "Unknown NGA error");
   }
+  // Clear cache for this thread
   for (const key of cache.keys()) {
     if (key.includes(`read.php?tid=${tid}`)) {
       cache.delete(key);

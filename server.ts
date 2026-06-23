@@ -59,20 +59,40 @@ async function startServer() {
         }
       }
 
+      let currentUrl = url;
       let response;
       let retries = 0;
       let json;
-      while (retries < 3) {
+      while (retries < 5) {
         try {
           response = await axios({
             method: method,
-            url: url,
+            url: currentUrl,
             headers,
             data: encodedData,
             responseType: "arraybuffer",
             timeout: 10000,
             maxRedirects: 0,
+            validateStatus: (status) => (status >= 200 && status < 300) || status === 301 || status === 302,
           });
+
+          if (response.status === 301 || response.status === 302) {
+            const location = response.headers.location;
+            const locStr = Array.isArray(location) ? location[0] : location;
+            if (locStr && locStr.includes('__lib=login')) {
+              return res.status(403).json({ error: ["15:访客不能直接访问，请登录"] });
+            } else if (locStr) {
+              // Follow redirect
+              let redirectedUrl = new URL(locStr, currentUrl);
+              const originalUrlObj = new URL(url);
+              if (originalUrlObj.searchParams.has('__output') && !redirectedUrl.searchParams.has('__output')) {
+                redirectedUrl.searchParams.set('__output', originalUrlObj.searchParams.get('__output') as string);
+              }
+              currentUrl = redirectedUrl.toString();
+              retries++;
+              continue;
+            }
+          }
 
           // NGA uses GBK encoding
           const decoded = iconv.decode(response.data, "gbk");
@@ -125,23 +145,13 @@ async function startServer() {
           }
         } catch (error: any) {
           retries++;
-          if (retries >= 3) throw error;
+          if (retries >= 5) throw error;
           console.warn(`Retry ${retries} for ${url} due to error: ${error.message}`);
         }
       }
       
       res.json(json);
     } catch (error: any) {
-      if (error.response && error.response.status === 302) {
-        const location = error.response.headers.location;
-        const locStr = Array.isArray(location) ? location[0] : location;
-        if (locStr && locStr.includes('__lib=login')) {
-          return res.status(403).json({ error: ["15:访客不能直接访问，请登录"] });
-        } else {
-          console.error("Unexpected 302 redirect to:", locStr);
-          return res.status(500).json({ error: "Unexpected redirect from NGA", location: locStr });
-        }
-      }
       if (error.response && error.response.status === 403) {
         try {
           const decoded = iconv.decode(error.response.data, "gbk");
@@ -154,8 +164,8 @@ async function startServer() {
           return res.status(403).json({ error: ["15:访客不能直接访问，请登录"] });
         }
       }
-      console.error("NGA Proxy Error:", error.message);
-      res.status(500).json({ error: ["Failed to fetch from NGA"] });
+      console.error("NGA Proxy Error:", error.message, "URL:", currentUrl);
+      res.status(500).json({ error: [error.message || "Failed to fetch from NGA"] });
     }
   });
 

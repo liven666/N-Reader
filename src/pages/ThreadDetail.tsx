@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getPostsByThread, toggleFavorThread, votePost, replyPost, Post } from "../services/ngaApi";
 import { ArrowLeft, ThumbsUp, ThumbsDown, MessageSquareReply, Share2, Bookmark, BookmarkCheck, Loader2, X, Send } from "lucide-react";
@@ -28,6 +28,14 @@ export default function ThreadDetail() {
   const [replyToPid, setReplyToPid] = useState<string | undefined>(undefined);
   const [submittingReply, setSubmittingReply] = useState(false);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Image Viewer
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
   useEffect(() => {
     if (id) {
       // Check local storage for initial state, but we should ideally fetch from NGA
@@ -50,6 +58,8 @@ export default function ThreadDetail() {
       setPosts(data.posts);
       setThreadTitle(data.threadTitle || "无标题");
       setReplyCount(data.replyCount || 0);
+      setPage(1);
+      setHasMore(data.posts.length >= 20);
       setLoading(false);
     } catch (err: any) {
       console.error("Fetch posts error:", err);
@@ -62,6 +72,37 @@ export default function ThreadDetail() {
         setError(err.message || "未知错误");
         setLoading(false);
       }
+    }
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !id) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const data = await getPostsByThread(id, nextPage, false);
+      if (data.posts.length === 0) {
+        setHasMore(false);
+      } else {
+        setPosts(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newPosts = data.posts.filter(p => !existingIds.has(p.id));
+          return [...prev, ...newPosts];
+        });
+        setPage(nextPage);
+        setHasMore(data.posts.length >= 20);
+      }
+    } catch (err: any) {
+      console.error("Failed to load more posts:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight * 1.5) {
+      loadMore();
     }
   };
 
@@ -131,6 +172,21 @@ export default function ThreadDetail() {
     setIsReplying(true);
   };
 
+  const handleShare = () => {
+    const ngaUrl = `https://bbs.nga.cn/read.php?tid=${id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: threadTitle,
+        url: ngaUrl
+      }).catch(err => {
+        console.error('Share failed', err);
+      });
+    } else {
+      navigator.clipboard.writeText(ngaUrl);
+      alert("原帖链接已复制到剪贴板");
+    }
+  };
+
   // Dynamic typography classes based on settings
   const textClasses = cn(
     "text-gray-800 dark:text-gray-200 break-words",
@@ -167,7 +223,7 @@ export default function ThreadDetail() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 overflow-y-auto pb-20" onScroll={handleScroll}>
         {loading ? (
           <div className="flex items-center justify-center p-12">
             <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
@@ -259,7 +315,7 @@ export default function ThreadDetail() {
                   <div className={textClasses}>
                     {(() => {
                       try {
-                        return parseBBCode(post.content);
+                        return parseBBCode(post.content, setFullscreenImage);
                       } catch (e) {
                         console.error("Parse BBCode error:", e);
                         return <div className="text-red-500 text-xs italic">内容解析失败</div>;
@@ -292,6 +348,11 @@ export default function ThreadDetail() {
                   </div>
                 </div>
               ))}
+              {loadingMore && (
+                <div className="p-4 flex justify-center border-t border-gray-100 dark:border-zinc-800/50">
+                  <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                </div>
+              )}
             </div>
           </>
         )}
@@ -306,10 +367,7 @@ export default function ThreadDetail() {
           说点什么...
         </button>
         <button 
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-            alert("链接已复制到剪贴板");
-          }}
+          onClick={handleShare}
           className="p-2 text-gray-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
         >
           <Share2 className="w-5 h-5" />
@@ -355,6 +413,33 @@ export default function ThreadDetail() {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Viewer */}
+      {fullscreenImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center animate-in fade-in duration-200"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <img 
+            src={fullscreenImage} 
+            alt="Fullscreen preview" 
+            className="max-w-full max-h-full object-contain pointer-events-auto cursor-zoom-out"
+            referrerPolicy="no-referrer"
+            onClick={(e) => {
+              // Let click bubble to close, but keep pointer events so user can long-press to save on mobile
+            }}
+          />
+          <button 
+            className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-black/50 rounded-full transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullscreenImage(null);
+            }}
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
       )}
     </div>

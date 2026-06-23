@@ -32,7 +32,7 @@ export function DiceRoll({ content }: { content: string, key?: React.Key }) {
 }
 
 // A more advanced BBCode parser for NGA
-export function parseBBCode(text: string): React.ReactNode {
+export function parseBBCode(text: string, onImageClick?: (url: string) => void): React.ReactNode {
   if (!text) return null;
 
   // 1. Handle [collapse=Title]...[/collapse]
@@ -42,11 +42,11 @@ export function parseBBCode(text: string): React.ReactNode {
     const result: React.ReactNode[] = [];
     for (let i = 0; i < parts.length; i++) {
       if (i % 3 === 0) {
-        result.push(<React.Fragment key={i}>{parseBBCode(parts[i])}</React.Fragment>);
+        result.push(<React.Fragment key={i}>{parseBBCode(parts[i], onImageClick)}</React.Fragment>);
       } else if (i % 3 === 1) {
         const title = parts[i];
         const content = parts[i + 1];
-        result.push(<Collapse key={i} title={title}>{parseBBCode(content)}</Collapse>);
+        result.push(<Collapse key={i} title={title}>{parseBBCode(content, onImageClick)}</Collapse>);
         i++; // skip content
       }
     }
@@ -61,11 +61,11 @@ export function parseBBCode(text: string): React.ReactNode {
       if (i % 2 === 0) {
         // Trim leading/trailing newlines for text outside quotes to avoid extra spacing
         const trimmedPart = part.replace(/^[\r\n]+|[\r\n]+$/g, '');
-        return trimmedPart ? <React.Fragment key={i}>{parseBBCode(trimmedPart)}</React.Fragment> : null;
+        return trimmedPart ? <React.Fragment key={i}>{parseBBCode(trimmedPart, onImageClick)}</React.Fragment> : null;
       } else {
         return (
           <blockquote key={i} className="border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-400 p-2 mt-0 mb-0 first:mt-0 last:mb-0 text-sm text-gray-700 dark:text-gray-300 rounded-r-md">
-            {parseBBCode(part.trim())}
+            {parseBBCode(part.trim(), onImageClick)}
           </blockquote>
         );
       }
@@ -96,17 +96,17 @@ export function parseBBCode(text: string): React.ReactNode {
             if (!part) return null;
             // Extremely simplified diceroll check for prototype
             if (j % 3 !== 0) return <DiceRoll key={j} content={part} />;
-            return <span key={j}>{parseInline(part)}</span>;
+            return <span key={j}>{parseInline(part, onImageClick)}</span>;
           })}
         </p>
       );
     }
 
-    return <p key={`p-${i}`} className="mt-0 mb-0 first:mt-0 last:mb-0">{parseInline(line)}</p>;
+    return <p key={`p-${i}`} className="mt-0 mb-0 first:mt-0 last:mb-0">{parseInline(line, onImageClick)}</p>;
   });
 }
 
-function parseInline(text: string): React.ReactNode {
+function parseInline(text: string, onImageClick?: (url: string) => void): React.ReactNode {
   let processed: React.ReactNode[] = [text];
 
   // Bold
@@ -165,7 +165,7 @@ function parseInline(text: string): React.ReactNode {
       imgSrc = `https://img.nga.178.com/attachments/${imgSrc.substring(2)}`;
     }
     return (
-      <img key={`img-${i}`} src={imgSrc} alt="user uploaded" className="max-w-full rounded-md object-cover shadow-sm my-2 block" referrerPolicy="no-referrer" loading="lazy" />
+      <img key={`img-${i}`} src={imgSrc} alt="user uploaded" className="max-w-full rounded-md object-cover shadow-sm my-2 block cursor-pointer" referrerPolicy="no-referrer" loading="lazy" onClick={() => onImageClick && onImageClick(imgSrc)} />
     );
   });
 
