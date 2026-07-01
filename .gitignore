@@ -1,8 +1,11 @@
 node_modules/
+.local-tools/
 build/
 dist/
+dist-apk/
 coverage/
 .DS_Store
 *.log
+*.apk
 .env*
 !.env.example

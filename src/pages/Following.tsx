@@ -4,6 +4,7 @@ import { Bookmark, Clock, MessageSquare, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { getFavorThreads, getCachedFavorThreads, Thread } from "../services/ngaApi";
+import { isLoginRequiredError } from "../utils/authErrors";
 
 export default function Following() {
   const cached = getCachedFavorThreads();
@@ -51,7 +52,7 @@ export default function Following() {
           </div>
         ) : error ? (
           <div className="text-center p-8 text-red-500">
-            {error.includes("访客不能直接访问") || error.includes("未登录") ? (
+            {isLoginRequiredError(error) ? (
               <span>请先<Link to="/profile" className="underline text-amber-600">登录</Link>以查看收藏的帖子</span>
             ) : (
               <span>加载失败: {error}</span>

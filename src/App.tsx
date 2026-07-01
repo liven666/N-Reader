@@ -12,11 +12,13 @@ import Following from "./pages/Following";
 import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import { SettingsProvider } from "./contexts/SettingsContext";
+import InternalLinkGuard from "./components/InternalLinkGuard";
 
 export default function App() {
   return (
     <SettingsProvider>
       <BrowserRouter>
+        <InternalLinkGuard />
         <Routes>
           <Route path="/" element={<MobileLayout />}>
             <Route index element={<BoardList />} />

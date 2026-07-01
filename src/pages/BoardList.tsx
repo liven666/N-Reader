@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { SortableList } from "../components/SortableList";
 import { HotBoardEditModal } from "../components/HotBoardEditModal";
+import { isLoginRequiredError } from "../utils/authErrors";
 
 export default function BoardList() {
   const cached = getCachedFavorBoards();
@@ -332,7 +333,7 @@ export default function BoardList() {
                 </div>
               ) : error ? (
                 <div className="text-sm text-red-500 px-1 mb-4">
-                  {error.includes("访客不能直接访问") || error.includes("未登录") ? (
+                  {isLoginRequiredError(error) ? (
                     <span>请先<Link to="/profile" className="underline text-amber-600">登录</Link>以查看收藏的板块</span>
                   ) : (
                     <span>加载失败: {error}</span>

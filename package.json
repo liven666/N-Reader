@@ -1,18 +1,24 @@
 {
-  "name": "react-example",
+  "name": "n-reader",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.13",
+  "description": "Mobile-first NGA reader with local web preview and Android app packaging.",
   "type": "module",
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
     "preview": "vite preview",
+    "mobile:sync": "vite build && cap sync android",
+    "mobile:open": "cap open android",
+    "android:debug": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
@@ -32,6 +38,7 @@
     "vite": "^6.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",

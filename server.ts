@@ -13,16 +13,21 @@ async function startServer() {
 
   // NGA Proxy Endpoint
   app.post("/api/nga", async (req, res) => {
+    let currentUrl = "";
     try {
       const { url, uid, cid, method = "GET", postData } = req.body;
+      currentUrl = url;
       const headers: any = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Connection": "keep-alive",
+        "Referer": "https://bbs.nga.cn/",
+        "Upgrade-Insecure-Requests": "1",
       };
       
       if (uid && cid) {
-        headers["Cookie"] = `ngaPassportUid=${uid}; ngaPassportCid=${cid};`;
+        headers["Cookie"] = `ngaPassportUid=${uid}; ngaPassportCid=${cid}; guestJs=${Math.floor(Date.now() / 1000)};`;
       }
 
       if (method === "POST") {
@@ -59,7 +64,6 @@ async function startServer() {
         }
       }
 
-      let currentUrl = url;
       let response;
       let retries = 0;
       let json;
@@ -94,10 +98,18 @@ async function startServer() {
             }
           }
 
-          // NGA uses GBK encoding
-          const decoded = iconv.decode(response.data, "gbk");
+          const responseUrl = response.request?.res?.responseUrl || currentUrl;
+          const outputType = new URL(responseUrl, currentUrl).searchParams.get("__output");
+          const decoded = outputType === "11"
+            ? Buffer.from(response.data).toString("utf8")
+            : iconv.decode(response.data, "gb18030");
           
           let cleanStr = decoded.trim();
+
+          if (/^<!doctype html/i.test(cleanStr) || /^<html/i.test(cleanStr)) {
+            const title = cleanStr.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim();
+            throw new Error(title ? `NGA 返回了网页而不是接口数据：${title}` : "NGA 返回了网页而不是接口数据");
+          }
           
           // Remove NGA's JS wrapper if present
           cleanStr = cleanStr.replace(/^(window\.|var\s+)?script_muti_get_var_store=/, '');
@@ -144,6 +156,12 @@ async function startServer() {
               }
           }
         } catch (error: any) {
+          if (error.response?.status === 403) {
+            throw error;
+          }
+          if (String(error.message || "").startsWith("NGA 返回了网页而不是接口数据")) {
+            throw error;
+          }
           retries++;
           if (retries >= 5) throw error;
           console.warn(`Retry ${retries} for ${url} due to error: ${error.message}`);

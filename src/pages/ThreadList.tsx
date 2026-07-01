@@ -5,6 +5,7 @@ import { getThreadsByBoard, Thread } from "../services/ngaApi";
 import { ArrowLeft, MessageSquare, Clock, Pin, Loader2, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { isLoginRequiredError } from "../utils/authErrors";
 
 export default function ThreadList() {
   const { id } = useParams<{ id: string }>();
@@ -218,7 +219,7 @@ export default function ThreadList() {
             <div className="text-red-500 text-sm mb-4">
               加载失败: {error}
             </div>
-            {error.includes("访客不能直接访问") || error.includes("未登录") ? (
+            {isLoginRequiredError(error) ? (
               <Link 
                 to="/profile"
                 className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-full text-sm font-medium transition-colors"

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronRight, ChevronDown, Dices } from 'lucide-react';
-import { acEmoticons } from './acEmoticons';
+import { resolveNgaSmileUrl } from './acEmoticons';
 
 export function Collapse({ title, children }: { title: string, children: React.ReactNode, key?: React.Key }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -140,20 +140,31 @@ function parseInline(text: string, onImageClick?: (url: string) => void): React.
   }, 2);
 
   // URL
-  processed = processTag(processed, /\[url=([^\]]+)\](.*?)\[\/url\]/g, (match, i, url) => <a key={`url-${i}`} href={url} target="_blank" rel="noopener noreferrer" className="text-amber-600 dark:text-amber-400 hover:underline">{match}</a>, 2);
-  processed = processTag(processed, /\[url\](.*?)\[\/url\]/g, (match, i) => <a key={`url2-${i}`} href={match} target="_blank" rel="noopener noreferrer" className="text-amber-600 dark:text-amber-400 hover:underline">{match}</a>);
+  processed = processTag(processed, /\[url=([^\]]+)\](.*?)\[\/url\]/g, (match, i, url) => <a key={`url-${i}`} href={url} className="text-amber-600 dark:text-amber-400 hover:underline">{match}</a>, 2);
+  processed = processTag(processed, /\[url\](.*?)\[\/url\]/g, (match, i) => <a key={`url2-${i}`} href={match} className="text-amber-600 dark:text-amber-400 hover:underline">{match}</a>);
 
   // UID/PID (simplified)
   processed = processTag(processed, /\[uid=([\d\s]+)\](.*?)\[\/uid\]/g, (match, i, uid) => <span key={`u-${i}`} className="text-amber-600 dark:text-amber-400 font-medium cursor-pointer hover:underline">@{match}</span>, 2);
 
-  // [s:ac:name] or [s:a2:name]
-  processed = processTag(processed, /\[s:(?:ac|a2):([^\]]+)\]/g, (match, i, name) => {
-    const url = acEmoticons[name];
+  // NGA built-in smiles, e.g. [s:ac:哭笑], [s:a2:doge], [s:ng:吃瓜]
+  processed = processTag(processed, /\[s:([a-zA-Z0-9_]+):([^\]]+)\]/g, (name, i, group) => {
+    const url = resolveNgaSmileUrl(group || "", name);
     if (url) {
-      return <img key={`ac-${i}`} src={url} alt={name} className="inline-block w-8 h-8 align-middle mx-0.5" referrerPolicy="no-referrer" />;
+      const label = `[s:${group}:${name}]`;
+      return (
+        <img
+          key={`smile-${i}`}
+          src={url}
+          alt={label}
+          title={label}
+          className="inline-block w-7 h-7 object-contain align-[-0.35em] mx-0.5"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+        />
+      );
     }
-    return match; // Return original if not found
-  }, 1);
+    return `[s:${group}:${name}]`;
+  }, 2);
 
   // [s]strikethrough[/s]
   processed = processTag(processed, /\[s\](.*?)\[\/s\]/g, (match, i) => <del key={`s-${i}`} className="text-gray-500">{match}</del>);
