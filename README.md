@@ -69,6 +69,14 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 构建 APK 需要本机安装 JDK 和 Android SDK。推荐直接安装 Android Studio，然后让它管理 JDK、SDK、模拟器和签名配置。
 
+## 项目结构
+
+- `src/`：前端界面、NGA 接口封装、BBCode 和表情解析。
+- `server.ts`：本地 Web 预览时使用的 NGA 代理服务。
+- `android/`：Capacitor Android 工程和原生网络/内部浏览器插件。
+- `docs/nga-api/`：NGA 网页接口参考资料。
+- `scripts/`：辅助脚本，例如从 GitHub Actions 下载 APK。
+
 ## 登录
 
 NGA 官方限制第三方客户端直接登录流程。当前需要手动填入：
